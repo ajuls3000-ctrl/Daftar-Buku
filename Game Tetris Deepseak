@@ -1,0 +1,362 @@
+import pygame
+import random
+
+# Inisialisasi Pygame
+pygame.init()
+
+# Konstanta
+WIDTH, HEIGHT = 400, 600
+GRID_SIZE = 30
+GRID_WIDTH = WIDTH // GRID_SIZE  # 10
+GRID_HEIGHT = HEIGHT // GRID_SIZE  # 20
+FPS = 60
+
+# Warna
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GRAY = (128, 128, 128)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+CYAN = (0, 255, 255)
+MAGENTA = (255, 0, 255)
+YELLOW = (255, 255, 0)
+ORANGE = (255, 165, 0)
+
+# Bentuk-bentuk Tetris (koordinat relatif)
+SHAPES = {
+    'I': {'shape': [[1, 1, 1, 1]], 'color': CYAN},
+    'O': {'shape': [[1, 1], [1, 1]], 'color': YELLOW},
+    'T': {'shape': [[0, 1, 0], [1, 1, 1]], 'color': MAGENTA},
+    'S': {'shape': [[0, 1, 1], [1, 1, 0]], 'color': GREEN},
+    'Z': {'shape': [[1, 1, 0], [0, 1, 1]], 'color': RED},
+    'L': {'shape': [[1, 0, 0], [1, 1, 1]], 'color': ORANGE},
+    'J': {'shape': [[0, 0, 1], [1, 1, 1]], 'color': BLUE}
+}
+
+class Tetris:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((WIDTH + 200, HEIGHT))
+        pygame.display.set_caption("TETRIS")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        self.grid = [[0] * GRID_WIDTH for _ in range(GRID_HEIGHT)]
+        self.current_piece = None
+        self.next_piece = None
+        self.score = 0
+        self.level = 1
+        self.lines_cleared = 0
+        self.game_over = False
+        self.paused = False
+        self.fall_time = 0
+        self.fall_speed = 1000  # milidetik
+        
+        self.spawn_piece()
+        self.spawn_piece()
+    
+    def spawn_piece(self):
+        """Membuat piece baru"""
+        if self.next_piece is None:
+            self.next_piece = self.random_piece()
+        
+        self.current_piece = self.next_piece
+        self.next_piece = self.random_piece()
+        
+        # Posisi awal di tengah atas
+        self.current_piece['x'] = GRID_WIDTH // 2 - len(self.current_piece['shape'][0]) // 2
+        self.current_piece['y'] = 0
+        
+        # Cek game over
+        if self.check_collision(self.current_piece['shape'], 
+                               self.current_piece['x'], 
+                               self.current_piece['y']):
+            self.game_over = True
+    
+    def random_piece(self):
+        """Memilih shape random"""
+        key = random.choice(list(SHAPES.keys()))
+        return {
+            'shape': [row[:] for row in SHAPES[key]['shape']],
+            'color': SHAPES[key]['color'],
+            'type': key
+        }
+    
+    def check_collision(self, shape, offset_x, offset_y):
+        """Cek apakah piece bertabrakan dengan batas atau block lain"""
+        for y, row in enumerate(shape):
+            for x, cell in enumerate(row):
+                if cell:
+                    new_x = offset_x + x
+                    new_y = offset_y + y
+                    if (new_x < 0 or new_x >= GRID_WIDTH or 
+                        new_y >= GRID_HEIGHT or
+                        (new_y >= 0 and self.grid[new_y][new_x])):
+                        return True
+        return False
+    
+    def merge_piece(self):
+        """Menggabungkan piece ke grid"""
+        shape = self.current_piece['shape']
+        color = self.current_piece['color']
+        offset_x = self.current_piece['x']
+        offset_y = self.current_piece['y']
+        
+        for y, row in enumerate(shape):
+            for x, cell in enumerate(row):
+                if cell and offset_y + y >= 0:
+                    self.grid[offset_y + y][offset_x + x] = color
+    
+    def clear_lines(self):
+        """Menghapus baris yang penuh"""
+        lines_cleared = 0
+        y = GRID_HEIGHT - 1
+        while y >= 0:
+            if all(self.grid[y]):
+                del self.grid[y]
+                self.grid.insert(0, [0] * GRID_WIDTH)
+                lines_cleared += 1
+            else:
+                y -= 1
+        
+        if lines_cleared > 0:
+            self.lines_cleared += lines_cleared
+            # Hitung skor
+            scores = {1: 100, 2: 300, 3: 500, 4: 800}
+            self.score += scores.get(lines_cleared, 100) * self.level
+            # Naik level setiap 10 baris
+            self.level = self.lines_cleared // 10 + 1
+            self.fall_speed = max(100, 1000 - (self.level - 1) * 100)
+    
+    def rotate_piece(self):
+        """Memutar piece 90 derajat searah jarum jam"""
+        shape = self.current_piece['shape']
+        rotated = [[shape[y][x] for y in range(len(shape) - 1, -1, -1)] 
+                   for x in range(len(shape[0]))]
+        
+        # Cek apakah rotasi valid
+        if not self.check_collision(rotated, 
+                                   self.current_piece['x'], 
+                                   self.current_piece['y']):
+            self.current_piece['shape'] = rotated
+    
+    def move_left(self):
+        """Gerak ke kiri"""
+        if not self.check_collision(self.current_piece['shape'],
+                                   self.current_piece['x'] - 1,
+                                   self.current_piece['y']):
+            self.current_piece['x'] -= 1
+    
+    def move_right(self):
+        """Gerak ke kanan"""
+        if not self.check_collision(self.current_piece['shape'],
+                                   self.current_piece['x'] + 1,
+                                   self.current_piece['y']):
+            self.current_piece['x'] += 1
+    
+    def move_down(self):
+        """Gerak ke bawah (soft drop)"""
+        if not self.check_collision(self.current_piece['shape'],
+                                   self.current_piece['x'],
+                                   self.current_piece['y'] + 1):
+            self.current_piece['y'] += 1
+            return True
+        else:
+            self.freeze_piece()
+            return False
+    
+    def hard_drop(self):
+        """Jatuh langsung ke bawah"""
+        while not self.check_collision(self.current_piece['shape'],
+                                      self.current_piece['x'],
+                                      self.current_piece['y'] + 1):
+            self.current_piece['y'] += 1
+        self.freeze_piece()
+    
+    def freeze_piece(self):
+        """Membekukan piece di posisi sekarang"""
+        self.merge_piece()
+        self.clear_lines()
+        self.spawn_piece()
+    
+    def draw_grid(self):
+        """Menggambar grid"""
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                if self.grid[y][x]:
+                    pygame.draw.rect(self.screen, self.grid[y][x],
+                                   (x * GRID_SIZE, y * GRID_SIZE, 
+                                    GRID_SIZE - 1, GRID_SIZE - 1))
+                else:
+                    pygame.draw.rect(self.screen, GRAY,
+                                   (x * GRID_SIZE, y * GRID_SIZE,
+                                    GRID_SIZE - 1, GRID_SIZE - 1), 1)
+    
+    def draw_piece(self, piece, offset_x=0, offset_y=0, ghost=False):
+        """Menggambar piece"""
+        shape = piece['shape']
+        color = piece['color']
+        x_pos = piece['x'] + offset_x
+        y_pos = piece['y'] + offset_y
+        
+        for y, row in enumerate(shape):
+            for x, cell in enumerate(row):
+                if cell:
+                    if ghost:
+                        pygame.draw.rect(self.screen, (100, 100, 100),
+                                       ((x_pos + x) * GRID_SIZE,
+                                        (y_pos + y) * GRID_SIZE,
+                                        GRID_SIZE - 1, GRID_SIZE - 1), 2)
+                    else:
+                        pygame.draw.rect(self.screen, color,
+                                       ((x_pos + x) * GRID_SIZE,
+                                        (y_pos + y) * GRID_SIZE,
+                                        GRID_SIZE - 1, GRID_SIZE - 1))
+    
+    def draw_ghost_piece(self):
+        """Menggambar bayangan piece di posisi jatuh"""
+        ghost_piece = {
+            'shape': self.current_piece['shape'],
+            'x': self.current_piece['x'],
+            'y': self.current_piece['y']
+        }
+        while not self.check_collision(ghost_piece['shape'],
+                                      ghost_piece['x'],
+                                      ghost_piece['y'] + 1):
+            ghost_piece['y'] += 1
+        self.draw_piece(ghost_piece, ghost=True)
+    
+    def draw_ui(self):
+        """Menggambar UI (skor, level, next piece)"""
+        # Kotak informasi
+        info_x = WIDTH + 20
+        info_y = 50
+        
+        # Skor
+        score_text = self.font.render(f"Skor: {self.score}", True, WHITE)
+        self.screen.blit(score_text, (info_x, info_y))
+        
+        # Level
+        level_text = self.font.render(f"Level: {self.level}", True, WHITE)
+        self.screen.blit(level_text, (info_x, info_y + 50))
+        
+        # Baris
+        lines_text = self.font.render(f"Baris: {self.lines_cleared}", True, WHITE)
+        self.screen.blit(lines_text, (info_x, info_y + 100))
+        
+        # Next piece
+        next_text = self.small_font.render("Next:", True, WHITE)
+        self.screen.blit(next_text, (info_x, info_y + 170))
+        
+        if self.next_piece:
+            next_shape = self.next_piece['shape']
+            next_color = self.next_piece['color']
+            for y, row in enumerate(next_shape):
+                for x, cell in enumerate(row):
+                    if cell:
+                        pygame.draw.rect(self.screen, next_color,
+                                       (info_x + x * 30 + 20,
+                                        info_y + 200 + y * 30,
+                                        28, 28))
+        
+        # Kontrol
+        controls = [
+            "Kontrol:",
+            "← → : Gerak",
+            "↑ : Rotasi",
+            "↓ : Turun",
+            "Space: Jatuh",
+            "P : Pause",
+            "R : Reset"
+        ]
+        
+        for i, text in enumerate(controls):
+            control_text = self.small_font.render(text, True, WHITE)
+            self.screen.blit(control_text, (info_x, info_y + 300 + i * 25))
+        
+        # Game Over
+        if self.game_over:
+            game_over_text = self.font.render("GAME OVER", True, RED)
+            self.screen.blit(game_over_text, (WIDTH//2 - 80, HEIGHT//2 - 50))
+            
+            restart_text = self.small_font.render("Tekan R untuk restart", True, WHITE)
+            self.screen.blit(restart_text, (WIDTH//2 - 80, HEIGHT//2))
+        
+        # Pause
+        if self.paused:
+            pause_text = self.font.render("PAUSED", True, WHITE)
+            self.screen.blit(pause_text, (WIDTH//2 - 60, HEIGHT//2 - 25))
+    
+    def reset_game(self):
+        """Reset game"""
+        self.grid = [[0] * GRID_WIDTH for _ in range(GRID_HEIGHT)]
+        self.score = 0
+        self.level = 1
+        self.lines_cleared = 0
+        self.game_over = False
+        self.fall_time = 0
+        self.fall_speed = 1000
+        self.spawn_piece()
+        self.spawn_piece()
+    
+    def run(self):
+        """Main game loop"""
+        running = True
+        self.fall_time = pygame.time.get_ticks()
+        
+        while running:
+            dt = pygame.time.get_ticks()
+            self.screen.fill(BLACK)
+            
+            # Event handling
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                    
+                    if not self.game_over and not self.paused:
+                        if event.key == pygame.K_LEFT:
+                            self.move_left()
+                        elif event.key == pygame.K_RIGHT:
+                            self.move_right()
+                        elif event.key == pygame.K_DOWN:
+                            self.move_down()
+                        elif event.key == pygame.K_UP:
+                            self.rotate_piece()
+                        elif event.key == pygame.K_SPACE:
+                            self.hard_drop()
+                        elif event.key == pygame.K_p:
+                            self.paused = not self.paused
+                    elif event.key == pygame.K_r:
+                        self.reset_game()
+            
+            # Update
+            if not self.game_over and not self.paused:
+                # Gerak turun otomatis
+                if dt - self.fall_time > self.fall_speed:
+                    if not self.move_down():
+                        # Piece sudah beku, spawn ulang
+                        pass
+                    self.fall_time = dt
+            
+            # Draw
+            self.draw_grid()
+            
+            if self.current_piece and not self.game_over:
+                self.draw_ghost_piece()
+                self.draw_piece(self.current_piece)
+            
+            self.draw_ui()
+            pygame.display.flip()
+            self.clock.tick(FPS)
+        
+        pygame.quit()
+
+# Jalankan game
+if __name__ == "__main__":
+    game = Tetris()
+    game.run()
