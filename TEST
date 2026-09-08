@@ -1,0 +1,24 @@
+Book= []
+
+
+while True:
+    print("Daftar Buku Di Perpustakaan")
+    print("Daftar Menu")
+    print("1.Tampilkan Buku")
+    print("2.Tambah Buku")
+    print("3.Hapus Buku")
+    print("4.Keluar Aplikasi")
+
+    pilihan = int(input("Ketik Angka Pilihan Anda = "))
+    if pilihan == 1 :
+        print (Book)
+    elif pilihan == 2 :
+        buku = str(input("Ketik Nama Buku = "))
+        Book.append(buku)
+    elif pilihan == 3 :
+        hapus = str (input("Ketik Nama Buku = "))
+        Book.remove (hapus)
+    elif pilihan == 4 :
+        break
+    else:
+        print("EROR")
