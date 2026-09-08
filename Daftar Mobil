@@ -1,0 +1,39 @@
+Mobil = []
+
+while True:
+    print("\n=== Daftar Mobil Di Showroom ===")
+    print("Daftar Menu")
+    print("1. Tampilkan Mobil")
+    print("2. Tambah Mobil")
+    print("3. Hapus Mobil")
+    print("4. Keluar Aplikasi")
+
+    pilihan = int(input("Ketik Angka Pilihan Anda = "))
+    
+    if pilihan == 1:
+        if Mobil:
+            print("\nDaftar Mobil:")
+            for i, mobil in enumerate(Mobil, 1):
+                print(f"{i}. {mobil}")
+        else:
+            print("\nShowroom masih kosong!")
+            
+    elif pilihan == 2:
+        mobil = input("Ketik Nama Mobil = ")
+        Mobil.append(mobil)
+        print(f"Mobil '{mobil}' berhasil ditambahkan!")
+        
+    elif pilihan == 3:
+        hapus = input("Ketik Nama Mobil = ")
+        if hapus in Mobil:
+            Mobil.remove(hapus)
+            print(f"Mobil '{hapus}' berhasil dihapus!")
+        else:
+            print(f"Mobil '{hapus}' tidak ditemukan!")
+            
+    elif pilihan == 4:
+        print("Terima kasih telah menggunakan aplikasi showroom!")
+        break
+        
+    else:
+        print("Pilihan tidak valid! Masukkan angka 1-4")
